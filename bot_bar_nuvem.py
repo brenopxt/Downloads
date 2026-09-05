@@ -123,6 +123,7 @@ def receber_mensagem():
 # ==============================================================================
 if __name__ == "__main__":
     from waitress import serve
-    porta = int(os.environ.get("PORT", 5000))
+    # Força o Python a usar a porta exata que o Render mandar
+    porta = int(os.environ.get("PORT", 10000))
     print(f"🚀 Servidor do Bar ativo na porta {porta}!")
     serve(app, host="0.0.0.0", port=porta)
