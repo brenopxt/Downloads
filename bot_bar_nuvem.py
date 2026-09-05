@@ -16,8 +16,8 @@ CARDAPIO = {
     "5": {"item": "Refrigerante Lata", "preco": 6.00}
 }
 
-# Configuração da Z-API pegando os dados do servidor de forma segura
-API_URL = os.environ.get("ZAPI_URL", "https://z-api.io")
+# SUA LINHA 20 CONFIGURADA CORRETAMENTE COM SEU ID E TOKEN REAIS:
+API_URL = "https://z-api.io"
 
 # Dicionário temporário na memória para controlar as conversas de cada cliente
 estados_clientes = {}
@@ -123,7 +123,6 @@ def receber_mensagem():
 # ==============================================================================
 if __name__ == "__main__":
     from waitress import serve
-    # O Render ou Railway definem a porta dinamicamente através de variáveis de ambiente
     porta = int(os.environ.get("PORT", 5000))
     print(f"🚀 Servidor do Bar ativo na porta {porta}!")
     serve(app, host="0.0.0.0", port=porta)
