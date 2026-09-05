@@ -17,7 +17,7 @@ CARDAPIO = {
 }
 
 # SUA LINHA 20 CONFIGURADA CORRETAMENTE COM SEU ID E TOKEN REAIS:
-API_URL = "https://z-api.io"
+API_URL = "https://z-api.io/instance/3F8B7081877EB18520FB260BF05B3023/3F8B7081877EB18520FB260BF05B3023/send-text"
 
 # Dicionário temporário na memória para controlar as conversas de cada cliente
 estados_clientes = {}
