@@ -6,6 +6,12 @@ import requests
 app = Flask(__name__)
 
 # ==============================================================================
+# CONFIGURAÇÕES DO NEGÓCIO
+# ==============================================================================
+NUMERO_COZINHA = "5582999999999"       # <-- FICTÍCIO: troque pelo número real da cozinha
+CHAVE_PIX = "00.000.000/0001-00"       # <-- FICTÍCIO: troque pela chave PIX real (CNPJ)
+
+# ==============================================================================
 # CARDÁPIO ORGANIZADO POR CATEGORIAS
 # ==============================================================================
 CARDAPIO = {
@@ -224,16 +230,31 @@ def receber_mensagem():
 
             total_pedido = sum([item["preco"] for item in usuario["carrinho"]])
             itens_txt = ", ".join([item["item"] for item in usuario["carrinho"]])
+            horario = datetime.now().strftime("%H:%M")
 
-            msg = (
+            # Mensagem para o cliente
+            msg_cliente = (
                 f"📝 *RESUMO DO SEU PEDIDO*, {usuario['nome']}:\n\n"
                 f"🛒 *Itens:* {itens_txt}\n"
                 f"💰 *Total:* R$ {total_pedido:.2f}\n\n"
-                f"📌 *Chave PIX (CNPJ):* [INSERIR_CNPJ_AQUI]\n\n"
+                f"📌 *Chave PIX:* {CHAVE_PIX}\n\n"
                 f"Por favor, realize o pagamento e envie o comprovante aqui. "
                 f"Seu pedido estará pronto para retirada em *25 minutos*!"
             )
-            enviar_mensagem_whatsapp(numero_cliente, msg)
+            enviar_mensagem_whatsapp(numero_cliente, msg_cliente)
+
+            # Mensagem para a cozinha
+            msg_cozinha = (
+                f"🔔 *NOVO PEDIDO* ({horario})\n\n"
+                f"👤 *Cliente:* {usuario['nome']}\n"
+                f"📱 *Telefone:* {numero_cliente}\n\n"
+                f"🛒 *Itens:*\n"
+            )
+            for item in usuario["carrinho"]:
+                msg_cozinha += f"- {item['item']}\n"
+            msg_cozinha += f"\n💰 *Total:* R$ {total_pedido:.2f}"
+
+            enviar_mensagem_whatsapp(NUMERO_COZINHA, msg_cozinha)
 
             # Reseta o cliente na memória do sistema para permitir novos pedidos futuros
             del estados_clientes[numero_cliente]
