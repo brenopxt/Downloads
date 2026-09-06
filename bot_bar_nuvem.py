@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 import os
+import re
 import requests
 
 app = Flask(__name__)
@@ -17,6 +18,10 @@ ETAPA_SAUDACAO = 0
 ETAPA_NOME = 1
 ETAPA_CATEGORIA = 2
 ETAPA_ITENS = 3
+
+# Regex que aceita "3" (1 unidade do item 3) ou "3x2" (2 unidades do item 3)
+PADRAO_ITEM_QUANTIDADE = re.compile(r"^(\d+)(?:[xX](\d+))?$")
+QUANTIDADE_MAXIMA_POR_VEZ = 20
 
 # ==============================================================================
 # CARDÁPIO ORGANIZADO POR CATEGORIAS
@@ -177,11 +182,31 @@ def montar_texto_itens(categoria):
     for i, info in enumerate(categoria["itens"], start=1):
         texto += f"*{i}* - {info['item']} (R$ {info['preco']:.2f})\n"
     texto += (
-        "\nDigite o *NÚMERO* do item para adicionar ao pedido.\n"
+        "\nDigite o *NÚMERO* do item para adicionar 1 unidade.\n"
+        "Pra pedir mais de uma unidade de uma vez, digite *número x quantidade*, "
+        "ex: *1x2* (adiciona 2 do item 1).\n\n"
         "Digite *CATEGORIAS* para voltar ao menu de categorias.\n"
         "Digite *FECHAR* para finalizar o pedido."
     )
     return texto
+
+
+def resumir_carrinho(carrinho):
+    """Agrupa itens repetidos e retorna lista de linhas tipo '2x Churrasco de boi'"""
+    contagem = {}
+    ordem = []
+    for item in carrinho:
+        nome = item["item"]
+        if nome not in contagem:
+            contagem[nome] = 0
+            ordem.append(nome)
+        contagem[nome] += 1
+
+    linhas = []
+    for nome in ordem:
+        qtd = contagem[nome]
+        linhas.append(f"{qtd}x {nome}" if qtd > 1 else nome)
+    return linhas
 
 
 def iniciar_novo_cliente():
@@ -288,7 +313,7 @@ def receber_mensagem():
                     return jsonify({"status": "sucesso"})
 
                 total_pedido = sum([item["preco"] for item in usuario["carrinho"]])
-                itens_txt = ", ".join([item["item"] for item in usuario["carrinho"]])
+                itens_txt = ", ".join(resumir_carrinho(usuario["carrinho"]))
                 horario = datetime.now().strftime("%H:%M")
 
                 # Mensagem para o cliente
@@ -308,11 +333,9 @@ def receber_mensagem():
                     f"📱 *Telefone:* {numero_cliente}\n\n"
                     f"🛒 *Itens:*\n"
                 )
-                for item in usuario["carrinho"]:
-                    msg_cozinha += f"- {item['item']}\n"
-                msg_cozinha += (
-                    f"\n💰 *Total (cobrar na retirada):* R$ {total_pedido:.2f}"
-                )
+                for linha in resumir_carrinho(usuario["carrinho"]):
+                    msg_cozinha += f"- {linha}\n"
+                msg_cozinha += f"\n💰 *Total (cobrar na retirada):* R$ {total_pedido:.2f}"
 
                 enviar_mensagem_whatsapp(NUMERO_COZINHA, msg_cozinha)
                 log(f"✅ Pedido fechado - {usuario['nome']} ({numero_cliente}) - R$ {total_pedido:.2f}")
@@ -327,12 +350,32 @@ def receber_mensagem():
                 enviar_mensagem_whatsapp(numero_cliente, montar_texto_categorias())
                 return jsonify({"status": "sucesso"})
 
-            elif mensagem_texto.isdigit() and 1 <= int(mensagem_texto) <= len(categoria["itens"]):
-                item_escolhido = categoria["itens"][int(mensagem_texto) - 1]
-                usuario["carrinho"].append(item_escolhido)
+            # Aceita "3" (1 unidade) ou "3x2" (2 unidades do item 3)
+            match = PADRAO_ITEM_QUANTIDADE.match(mensagem_texto)
+            if match:
+                numero_item = int(match.group(1))
+                quantidade = int(match.group(2)) if match.group(2) else 1
+
+                if not (1 <= numero_item <= len(categoria["itens"])):
+                    msg = "❌ Número de item inválido.\n\n" + montar_texto_itens(categoria)
+                    enviar_mensagem_whatsapp(numero_cliente, msg)
+                    return jsonify({"status": "sucesso"})
+
+                if not (1 <= quantidade <= QUANTIDADE_MAXIMA_POR_VEZ):
+                    enviar_mensagem_whatsapp(
+                        numero_cliente,
+                        f"❌ Quantidade inválida. Digite entre 1 e {QUANTIDADE_MAXIMA_POR_VEZ} unidades."
+                    )
+                    return jsonify({"status": "sucesso"})
+
+                item_escolhido = categoria["itens"][numero_item - 1]
+                for _ in range(quantidade):
+                    usuario["carrinho"].append(item_escolhido)
+
+                texto_quantidade = f"{quantidade}x " if quantidade > 1 else ""
                 msg = (
-                    f"✅ *{item_escolhido['item']}* adicionado!\n\n"
-                    "Quer mais alguma coisa dessa categoria? Digite outro número.\n"
+                    f"✅ *{texto_quantidade}{item_escolhido['item']}* adicionado!\n\n"
+                    "Quer mais alguma coisa dessa categoria? Digite outro número (ex: 2 ou 2x3).\n"
                     "Digite *CATEGORIAS* para ver outras opções ou *FECHAR* para finalizar."
                 )
                 enviar_mensagem_whatsapp(numero_cliente, msg)
