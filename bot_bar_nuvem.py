@@ -16,11 +16,11 @@ CARDAPIO = {
     "5": {"item": "Refrigerante Lata", "preco": 6.00}
 }
 
-# SUA LINHA 20 CONFIGURADA CORRETAMENTE COM SEU ID E TOKEN REAIS:
-API_URL = "https://api.z-api.io/instances/3F8B7081877EB18520FB260BF05B3023/token/0EC998A354971A6CF2550B50/send-text"
-
 # Dicionário temporário na memória para controlar as conversas de cada cliente
 estados_clientes = {}
+
+API_URL = "https://api.z-api.io/instances/3F8B7081877EB18520FB260BF05B3023/token/0EC998A354971A6CF2550B50/send-text"
+CLIENT_TOKEN = os.environ.get("ZAPI_CLIENT_TOKEN")
 
 def enviar_mensagem_whatsapp(numero, texto):
     """Envia a mensagem real para o WhatsApp do cliente via Z-API"""
@@ -28,8 +28,10 @@ def enviar_mensagem_whatsapp(numero, texto):
         "phone": numero,
         "message": texto
     }
+    headers = {"Client-Token": CLIENT_TOKEN}
     try:
-        requests.post(API_URL, json=payload, timeout=10)
+        resp = requests.post(API_URL, json=payload, headers=headers, timeout=10)
+        print(f"Status: {resp.status_code} | Resposta: {resp.text}")
     except Exception as e:
         print(f"Erro ao enviar mensagem para o WhatsApp: {e}")
 
