@@ -50,7 +50,7 @@ def receber_mensagem():
         if not dados:
             return jsonify({"status": "corpo_invalido"})
 
-        # A Whapi.Cloud manda vários tipos de evento; só nos interessa "messages"
+        # Só nos interessa evento de mensagens
         if dados.get("event", {}).get("type") != "messages":
             return jsonify({"status": "ignorado"})
 
@@ -63,6 +63,12 @@ def receber_mensagem():
         # Ignora mensagens enviadas pelo próprio bot (evita loop)
         if mensagem.get("from_me"):
             return jsonify({"status": "ignorado"})
+
+        # 🚫 BLOQUEIO DE GRUPO: chat_id de grupo sempre termina em "@g.us"
+        chat_id = mensagem.get("chat_id", "")
+        if chat_id.endswith("@g.us"):
+            log(f"🚫 Mensagem de grupo ignorada (chat_id: {chat_id})")
+            return jsonify({"status": "grupo_ignorado"})
 
         numero_cliente = mensagem.get("from")
         if not numero_cliente:
@@ -96,3 +102,36 @@ def receber_pedido_site():
         nome_cliente = dados.get("nome_cliente") or dados.get("customer_name", "Cliente")
         itens = dados.get("itens") or dados.get("items", [])
         total = dados.get("total", 0)
+
+        if not telefone_cliente:
+            log("⚠️ Pedido recebido sem telefone do cliente.")
+            return jsonify({"status": "sem_telefone"})
+
+        itens_txt = ", ".join(str(i) for i in itens) if itens else "detalhes no painel do oxemenu"
+
+        msg_cliente = (
+            f"✅ *Pedido confirmado, {nome_cliente}!*\n\n"
+            f"🛒 *Itens:* {itens_txt}\n"
+            f"💰 *Total:* R$ {float(total):.2f}\n\n"
+            f"Seu pedido já está sendo preparado e fica pronto em *{TEMPO_PREPARO}*! 🍻"
+        )
+        enviar_mensagem_whatsapp(telefone_cliente, msg_cliente)
+        log(f"✅ Pedido do site confirmado para {nome_cliente} ({telefone_cliente})")
+
+        return jsonify({"status": "sucesso"})
+
+    except Exception as e:
+        log(f"🔥 ERRO INESPERADO no /webhook-pedido: {e}")
+        return jsonify({"status": "erro_interno"})
+
+
+@app.route("/", methods=["GET"])
+def health_check():
+    return jsonify({"status": "online", "bot": NOME_BAR})
+
+
+if __name__ == "__main__":
+    from waitress import serve
+    porta = int(os.environ.get("PORT", 10000))
+    log(f"🚀 Servidor do {NOME_BAR} ativo na porta {porta}!")
+    serve(app, host="0.0.0.0", port=porta)
